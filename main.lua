@@ -1,106 +1,226 @@
---[[
-    Adopt Me Research Workspace (Delta Edition)
-    main.lua — Core Entry File
-    Purpose: Provide a clean foundation before adding modules.
-]]
+--// Load Rayfield
+local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
 
------------------------------
--- Utility
------------------------------
+--// Create Window
+local Window = Rayfield:CreateWindow({
+    Name = "Zogog Adopt Me Toolkit",
+    Icon = nil, -- no icon for now
+    LoadingTitle = "Loading Toolkit",
+    LoadingSubtitle = "Clean Starter UI",
+    Theme = "Default",
+    DisableRayfieldPrompts = true,
+    ConfigurationSaving = {
+        Enabled = true,
+        FolderName = "ZogogToolkit",
+        FileName = "ToolkitConfig"
+    }
+})
 
-local function log(...)
-    print("[AM-CORE]", ...)
+--// Tabs
+local MainTab      = Window:CreateTab("Main", "home")
+local PetsTab      = Window:CreateTab("Pets", "paw-print")
+local AilmentsTab  = Window:CreateTab("Ailments", "heart-pulse")
+local DebugTab     = Window:CreateTab("Debug", "terminal")
+
+---------------------------------------------------------------------
+-- MAIN TAB
+---------------------------------------------------------------------
+MainTab:CreateSection("Welcome")
+MainTab:CreateLabel("Simple, clean UI. Ready to expand.")
+
+MainTab:CreateButton({
+    Name = "Reload Script",
+    Callback = function()
+        Rayfield:Notify({
+            Title = "Reloading",
+            Content = "Toolkit is restarting...",
+            Duration = 2
+        })
+        -- replace with your raw script URL when hosted
+        -- loadstring(game:HttpGet("YOUR_SCRIPT_URL_HERE"))()
+    end
+})
+
+---------------------------------------------------------------------
+-- PETS TAB
+---------------------------------------------------------------------
+PetsTab:CreateSection("Pet Tools")
+
+-- basic pet dropdown (can be expanded later)
+local PetDropdown = PetsTab:CreateDropdown({
+    Name = "Select Pet (placeholder)",
+    Options = {"None"},
+    CurrentOption = {"None"},
+    MultipleOptions = false,
+    Callback = function(option)
+        print("Selected pet:", option[1])
+    end
+})
+
+PetsTab:CreateButton({
+    Name = "Refresh Pet List (placeholder)",
+    Callback = function()
+        local Loads = require(game.ReplicatedStorage.Fsys).load
+        local ClientData = Loads("ClientData")
+
+        local pets = {}
+        for uuid, data in pairs(ClientData.get("inventory").pets or {}) do
+            table.insert(pets, data.id)
+        end
+
+        if #pets == 0 then
+            pets = {"None"}
+        end
+
+        PetDropdown:Refresh(pets)
+    end
+})
+
+---------------------------------------------------------------------
+-- PET SPAWNER MODULE
+---------------------------------------------------------------------
+PetsTab:CreateSection("Pet Spawner")
+
+local PetNameBox = PetsTab:CreateInput({
+    Name = "Pet Name",
+    PlaceholderText = "Enter exact pet name (e.g., unicorn)",
+    RemoveTextAfterFocusLost = false,
+    Callback = function() end
+})
+
+local PetTypeDropdown = PetsTab:CreateDropdown({
+    Name = "Pet Type",
+    Options = {"FR", "NFR", "MFR"},
+    CurrentOption = {"FR"},
+    MultipleOptions = false,
+    Callback = function(option)
+        getgenv().SpawnerPetType = option[1]
+    end
+})
+
+getgenv().SpawnerPetType = "FR"
+
+local function DeepClone(tbl)
+    local copy = {}
+    for k, v in pairs(tbl) do
+        copy[k] = (type(v) == "table") and DeepClone(v) or v
+    end
+    return copy
 end
 
-log("main.lua initialized")
+local function GenerateProperties()
+    local t = getgenv().SpawnerPetType
+    return {
+        flyable = (t == "FR" or t == "NFR" or t == "MFR"),
+        rideable = (t == "FR" or t == "NFR" or t == "MFR"),
+        neon = (t == "NFR" or t == "MFR"),
+        mega_neon = (t == "MFR"),
+        age = 1
+    }
+end
 
------------------------------
--- Environment Detection
------------------------------
+local function SpawnPet(petName)
+    local Loads = require(game.ReplicatedStorage.Fsys).load
+    local ClientData = Loads("ClientData")
+    local InventoryDB = Loads("InventoryDB")
+    local Inventory = ClientData.get("inventory")
 
-local env = {
-    executor = identifyexecutor and identifyexecutor() or "Unknown",
-    setIdentity = setthreadidentity or (syn and syn.set_thread_identity),
-    getIdentity = getthreadidentity or (syn and syn.get_thread_identity),
-}
-
------------------------------
--- GUI Setup
------------------------------
-
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local Stats = game:GetService("Stats")
-
-local player = Players.LocalPlayer
-local playerGui = player:WaitForChild("PlayerGui")
-
--- Remove old GUI if reloaded
-local old = playerGui:FindFirstChild("AM_DebugGUI")
-if old then old:Destroy() end
-
-local gui = Instance.new("ScreenGui")
-gui.Name = "AM_DebugGUI"
-gui.ResetOnSpawn = false
-gui.Parent = playerGui
-
--- Main frame
-local frame = Instance.new("Frame")
-frame.Size = UDim2.new(0, 260, 0, 160)
-frame.Position = UDim2.new(0, 20, 0, 200)
-frame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
-frame.BorderSizePixel = 0
-frame.Active = true
-frame.Draggable = true
-frame.Parent = gui
-
--- Title bar
-local title = Instance.new("TextLabel")
-title.Size = UDim2.new(1, 0, 0, 24)
-title.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
-title.Text = "Adopt Me Debug Panel"
-title.TextColor3 = Color3.fromRGB(255, 255, 255)
-title.Font = Enum.Font.GothamBold
-title.TextSize = 14
-title.Parent = frame
-
--- Info text
-local info = Instance.new("TextLabel")
-info.Size = UDim2.new(1, -10, 1, -30)
-info.Position = UDim2.new(0, 5, 0, 28)
-info.BackgroundTransparency = 1
-info.TextColor3 = Color3.fromRGB(200, 200, 200)
-info.Font = Enum.Font.Code
-info.TextXAlignment = Enum.TextXAlignment.Left
-info.TextYAlignment = Enum.TextYAlignment.Top
-info.TextSize = 14
-info.Text = "Loading..."
-info.Parent = frame
-
------------------------------
--- Live Update Loop
------------------------------
-
-RunService.RenderStepped:Connect(function()
-    local identity = "N/A"
-    if env.getIdentity then
-        local ok, result = pcall(env.getIdentity)
-        if ok then identity = result end
+    if not Inventory.pets then
+        Inventory.pets = {}
     end
 
-    local fps = math.floor(1 / RunService.RenderStepped:Wait())
-    local ping = Stats.Network.ServerStatsItem["Data Ping"]:GetValueString()
-    local mem = Stats:GetTotalMemoryUsageMb()
+    for category, items in pairs(InventoryDB) do
+        for id, item in pairs(items) do
+            if category == "pets" and item.name:lower() == petName:lower() then
+                local new = DeepClone(item)
+                local uuid = game.HttpService:GenerateGUID(false)
 
-    info.Text = string.format([[
-Executor: %s
-ThreadIdentity: %s
+                new.unique = "uuid_" .. uuid
+                new.category = "pets"
+                new.properties = GenerateProperties()
+                new.newness_order = math.random(1, 999999)
 
-FPS: %s
-Ping: %s
-Memory: %s MB
-]], env.executor, identity, fps, ping, math.floor(mem))
-end)
+                Inventory.pets[uuid] = new
 
-log("Debug GUI loaded")
-log("main.lua ready")
+                Rayfield:Notify({
+                    Title = "Pet Spawned",
+                    Content = "Added " .. item.name .. " (" .. getgenv().SpawnerPetType .. ") to your inventory",
+                    Duration = 3
+                })
+
+                return
+            end
+        end
+    end
+
+    Rayfield:Notify({
+        Title = "Pet Not Found",
+        Content = "No pet named '" .. petName .. "' exists in InventoryDB",
+        Duration = 3
+    })
+end
+
+PetsTab:CreateButton({
+    Name = "Spawn Pet",
+    Callback = function()
+        local name = PetNameBox:Get()
+        if name == "" then
+            Rayfield:Notify({
+                Title = "Error",
+                Content = "Please enter a pet name",
+                Duration = 2
+            })
+            return
+        end
+        SpawnPet(name)
+    end
+})
+
+---------------------------------------------------------------------
+-- AILMENTS TAB
+---------------------------------------------------------------------
+AilmentsTab:CreateSection("Ailment Tools")
+
+AilmentsTab:CreateDropdown({
+    Name = "Disable Ailments (placeholder)",
+    Options = {
+        "hungry","thirsty","sleepy","dirty","toilet","sick","play","ride",
+        "salon","bored","camping","beach_party","pizza_party","moon",
+        "school","walk","pet_me"
+    },
+    CurrentOption = {"None"},
+    MultipleOptions = true,
+    Callback = function(selected)
+        print("Disabled ailments:", selected)
+    end
+})
+
+AilmentsTab:CreateToggle({
+    Name = "Live Ailment Monitor (placeholder)",
+    CurrentValue = false,
+    Callback = function(enabled)
+        print("Ailment monitor:", enabled)
+    end
+})
+
+---------------------------------------------------------------------
+-- DEBUG TAB
+---------------------------------------------------------------------
+DebugTab:CreateSection("Debug")
+
+DebugTab:CreateButton({
+    Name = "Print Inventory",
+    Callback = function()
+        local Loads = require(game.ReplicatedStorage.Fsys).load
+        local ClientData = Loads("ClientData")
+        print(ClientData.get("inventory"))
+    end
+})
+
+DebugTab:CreateToggle({
+    Name = "Enable Debug Logging (placeholder)",
+    CurrentValue = false,
+    Callback = function(v)
+        print("Debug logging:", v)
+    end
+})
